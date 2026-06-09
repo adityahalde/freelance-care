@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Shop — Urban Edge</title>
+  <link rel="stylesheet" href="/static/css/main.css">
+</head>
+<body>
+  <header class="site-header" id="site-header"></header>
+
+  <main>
+    <div class="container page-header">
+      <h1>Shop All</h1>
+      <p class="section-subtitle">Premium streetwear</p>
+    </div>
+
+    <div class="container">
+      <div class="filters-bar">
+        <input type="search" id="search-input" placeholder="Search products, categories...">
+        <select id="category-filter" aria-label="Filter by category">
+          <option value="">All Categories</option>
+        </select>
+        <button type="button" class="btn btn-primary btn-sm" id="filter-btn">Search</button>
+      </div>
+      <div class="category-pills" id="category-pills"></div>
+      <div class="product-grid" id="products-grid"></div>
+    </div>
+  </main>
+
+  <footer class="site-footer" id="site-footer"></footer>
+
+  <script src="/static/js/api.js"></script>
+  <script src="/static/js/cart.js"></script>
+  <script src="/static/js/main.js"></script>
+  <script>
+    async function loadCategoryFilters() {
+      const data = await apiRequest("/api/products/categories");
+      const select = document.getElementById("category-filter");
+      const pills = document.getElementById("category-pills");
+      const params = new URLSearchParams(window.location.search);
+      const current = params.get("category") || "";
+
+      pills.innerHTML = `<a href="/products.html" class="category-pill ${!current ? "active" : ""}">All</a>`;
+
+      data.categories.forEach((cat) => {
+        const opt = document.createElement("option");
+        opt.value = cat.name;
+        opt.textContent = cat.name;
+        if (cat.name === current) opt.selected = true;
+        select.appendChild(opt);
+
+        const pill = document.createElement("a");
+        pill.href = `/products.html?category=${encodeURIComponent(cat.name)}`;
+        pill.className = `category-pill ${cat.name === current ? "active" : ""}`;
+        pill.textContent = cat.name;
+        pills.appendChild(pill);
+      });
+    }
+
+    function applyFilters() {
+      const search = document.getElementById("search-input").value.trim();
+      const category = document.getElementById("category-filter").value;
+      const params = new URLSearchParams();
+      if (search) params.set("search", search);
+      if (category) params.set("category", category);
+      const qs = params.toString();
+      window.location.href = qs ? `/products.html?${qs}` : "/products.html";
+    }
+
+    document.addEventListener("DOMContentLoaded", async () => {
+      setPageTitle("products");
+      renderHeader("products");
+      const params = new URLSearchParams(window.location.search);
+      document.getElementById("search-input").value = params.get("search") || "";
+      await loadCategoryFilters();
+      document.getElementById("filter-btn").addEventListener("click", applyFilters);
+      document.getElementById("search-input").addEventListener("keydown", (e) => {
+        if (e.key === "Enter") applyFilters();
+      });
+      loadProductsGrid("products-grid");
+    });
+  </script>
+</body>
+</html>

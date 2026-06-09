@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Orders — Urban Edge</title>
+  <link rel="stylesheet" href="/static/css/main.css">
+</head>
+<body>
+  <header class="site-header" id="site-header"></header>
+
+  <main class="container section">
+    <div class="page-header">
+      <p class="breadcrumb"><a href="/">Home</a> / Orders</p>
+      <h1>Order History</h1>
+      <p class="section-subtitle">Track your Urban Edge purchases</p>
+    </div>
+    <div id="alert-box"></div>
+    <div id="orders-list"></div>
+  </main>
+
+  <footer class="site-footer" id="site-footer"></footer>
+
+  <script src="/static/js/api.js"></script>
+  <script src="/static/js/cart.js"></script>
+  <script src="/static/js/main.js"></script>
+  <script>
+    async function loadOrders() {
+      if (!getUser()) {
+        window.location.href = "/login.html?redirect=/orders.html";
+        return;
+      }
+
+      const container = document.getElementById("orders-list");
+      try {
+        const data = await apiRequest("/api/orders");
+        const orders = data.orders || [];
+
+        if (orders.length === 0) {
+          container.innerHTML = `
+            <div class="empty-state">
+              <h2>No orders yet</h2>
+              <p>Your past orders will appear here.</p>
+              <a href="/products.html" class="btn btn-primary">Start Shopping</a>
+            </div>`;
+          return;
+        }
+
+        container.innerHTML = orders
+          .map(
+            (order) => `
+          <div class="order-card">
+            <div class="order-header">
+              <div>
+                <strong>Order #${order.id}</strong>
+                <p style="color:#9a9a9a;font-size:0.85rem">${new Date(order.created_at).toLocaleString("en-IN")}</p>
+              </div>
+              <div style="text-align:right">
+                <span class="order-status ${order.status}">${order.status}</span>
+                <p style="font-weight:700;margin-top:0.5rem;font-size:1.1rem">${formatPrice(order.total)}</p>
+              </div>
+            </div>
+            ${
+              order.shipping_address
+                ? `<p class="order-shipping">📍 ${escapeHtml(order.shipping_address)}, ${escapeHtml(order.city || "")} — ${escapeHtml(order.pincode || "")} · ${escapeHtml(order.phone || "")}</p>`
+                : ""
+            }
+            <ul class="order-items-list">
+              ${(order.items || [])
+                .map(
+                  (item) =>
+                    `<li><span>${escapeHtml(item.product_name)} × ${item.quantity}</span><span>${formatPrice(item.price * item.quantity)}</span></li>`
+                )
+                .join("")}
+            </ul>
+          </div>`
+          )
+          .join("");
+      } catch (err) {
+        if (err.status === 401) {
+          window.location.href = "/login.html?redirect=/orders.html";
+          return;
+        }
+        showAlert("alert-box", err.message);
+      }
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+      setPageTitle("orders");
+      renderHeader("orders");
+      loadOrders();
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cart — Urban Edge</title>
+  <link rel="stylesheet" href="/static/css/main.css">
+</head>
+<body>
+  <header class="site-header" id="site-header"></header>
+
+  <main class="container">
+    <div class="page-header">
+      <p class="breadcrumb"><a href="/">Home</a> / Cart</p>
+      <h1>Shopping Cart</h1>
+    </div>
+    <div id="alert-box"></div>
+    <div class="cart-layout" id="cart-layout">
+      <div id="cart-items"></div>
+      <div class="cart-summary" id="cart-summary"></div>
+    </div>
+  </main>
+
+  <footer class="site-footer" id="site-footer"></footer>
+
+  <script src="/static/js/api.js"></script>
+  <script src="/static/js/cart.js"></script>
+  <script src="/static/js/main.js"></script>
+  <script>
+    const FREE_SHIPPING_MIN = 999;
+
+    function renderCart() {
+      const cart = getCart();
+      const itemsEl = document.getElementById("cart-items");
+      const summaryEl = document.getElementById("cart-summary");
+
+      if (cart.length === 0) {
+        document.getElementById("cart-layout").innerHTML = `
+          <div class="empty-state" style="grid-column:1/-1">
+            <h2>Your cart is empty</h2>
+            <p>Discover our latest streetwear drops.</p>
+            <a href="/products.html" class="btn btn-primary">Start Shopping</a>
+          </div>`;
+        return;
+      }
+
+      itemsEl.innerHTML = cart
+        .map(
+          (item) => `
+        <div class="cart-item">
+          <a href="/product.html?id=${item.product_id}">
+            <img src="${escapeHtml(item.image)}" alt="${escapeHtml(item.name)}">
+          </a>
+          <div class="cart-item-info">
+            <h3><a href="/product.html?id=${item.product_id}">${escapeHtml(item.name)}</a></h3>
+            <p class="cart-item-price">${formatPrice(item.price)} each</p>
+            <div class="quantity-control" style="margin:0.75rem 0">
+              <button type="button" class="cart-qty-minus" data-id="${item.product_id}" aria-label="Decrease">−</button>
+              <span>${item.quantity}</span>
+              <button type="button" class="cart-qty-plus" data-id="${item.product_id}" aria-label="Increase">+</button>
+            </div>
+            <button type="button" class="btn btn-outline btn-sm cart-remove" data-id="${item.product_id}">Remove</button>
+          </div>
+          <div><strong>${formatPrice(item.price * item.quantity)}</strong></div>
+        </div>`
+        )
+        .join("");
+
+      const subtotal = getCartTotal();
+      const shipping = subtotal >= FREE_SHIPPING_MIN ? 0 : 99;
+      const total = subtotal + shipping;
+
+      const user = getUser();
+      summaryEl.innerHTML = `
+        <h2>Order Summary</h2>
+        <div class="summary-row"><span>Subtotal</span><span>${formatPrice(subtotal)}</span></div>
+        <div class="summary-row"><span>Shipping</span><span>${shipping === 0 ? "FREE" : formatPrice(shipping)}</span></div>
+        ${subtotal < FREE_SHIPPING_MIN ? `<p class="form-hint" style="margin-bottom:1rem">Add ${formatPrice(FREE_SHIPPING_MIN - subtotal)} more for free shipping</p>` : ""}
+        <div class="summary-row total"><span>Total</span><span>${formatPrice(total)}</span></div>
+        ${
+          user
+            ? `<a href="/checkout.html" class="btn btn-primary btn-block" style="margin-top:1.25rem">Proceed to Checkout</a>`
+            : `<p class="form-hint" style="margin:1rem 0">Please login to checkout</p>
+               <a href="/login.html" class="btn btn-primary btn-block">Login to Checkout</a>`
+        }
+        <a href="/products.html" class="btn btn-outline btn-block" style="margin-top:0.5rem">Continue Shopping</a>
+      `;
+
+      document.querySelectorAll(".cart-qty-minus").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const id = parseInt(btn.dataset.id, 10);
+          const item = getCart().find((i) => i.product_id === id);
+          updateQuantity(id, item.quantity - 1);
+          renderCart();
+        });
+      });
+      document.querySelectorAll(".cart-qty-plus").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const id = parseInt(btn.dataset.id, 10);
+          const item = getCart().find((i) => i.product_id === id);
+          if (item.quantity < 20) {
+            updateQuantity(id, item.quantity + 1);
+            renderCart();
+          }
+        });
+      });
+      document.querySelectorAll(".cart-remove").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          removeFromCart(parseInt(btn.dataset.id, 10));
+          renderCart();
+        });
+      });
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+      setPageTitle("cart");
+      renderHeader("cart");
+      renderCart();
+    });
+  </script>
+</body>
+</html>

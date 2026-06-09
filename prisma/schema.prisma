@@ -1,0 +1,68 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String
+  role      String   // "client" | "freelancer"
+  avatar    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  freelancerProfile FreelancerProfile?
+  bookingsAsClient  Booking[]         @relation("ClientBookings")
+  bookingsAsFreelancer Booking[]      @relation("FreelancerBookings")
+  passwordResetTokens PasswordResetToken[]
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model FreelancerProfile {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bio         String
+  services    String   // "cameraman" | "video_editor" | "both" (or JSON array)
+  experience  String   // e.g. "5 years"
+  city        String
+  hourlyRate  Float?
+  portfolioUrl String?
+  sampleWorkUrl String?
+  skills      String?  // comma-separated or JSON
+  equipment   String?  // optional description
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+}
+
+model Booking {
+  id            String   @id @default(cuid())
+  clientId      String
+  client        User     @relation("ClientBookings", fields: [clientId], references: [id], onDelete: Cascade)
+  freelancerId  String
+  freelancer    User     @relation("FreelancerBookings", fields: [freelancerId], references: [id], onDelete: Cascade)
+  eventType     String
+  eventDate     DateTime
+  message       String?
+  status        String   @default("pending")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}

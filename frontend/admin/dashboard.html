@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Dashboard — Urban Edge</title>
+  <link rel="stylesheet" href="/static/css/main.css">
+</head>
+<body>
+  <header class="site-header" id="site-header"></header>
+
+  <main class="container admin-layout">
+    <aside class="admin-sidebar">
+      <h2>Dashboard</h2>
+      <ul class="admin-nav">
+        <li><a href="#" data-panel="overview" class="active">Overview</a></li>
+        <li><a href="#" data-panel="products">Products</a></li>
+        <li><a href="#" data-panel="orders">Orders</a></li>
+        <li><a href="/">View Store</a></li>
+        <li><button type="button" id="admin-logout">Logout</button></li>
+      </ul>
+    </aside>
+
+    <div class="admin-content">
+      <div id="alert-box"></div>
+
+      <section id="panel-overview" class="admin-panel active">
+        <h1 class="section-title" style="margin-bottom:1.5rem">Overview</h1>
+        <div class="stats-grid" id="stats-grid">
+          <p style="color:#9a9a9a">Loading statistics...</p>
+        </div>
+        <h2 class="section-title" style="font-size:1rem;margin:2rem 0 1rem">Recent Orders</h2>
+        <div id="recent-orders"></div>
+      </section>
+
+      <section id="panel-products" class="admin-panel">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem;flex-wrap:wrap;gap:1rem">
+          <h1 class="section-title" style="margin:0">Products</h1>
+          <button type="button" class="btn btn-primary" id="add-product-btn">+ Add Product</button>
+        </div>
+        <div class="table-wrap">
+          <table class="admin-table">
+            <thead>
+              <tr>
+                <th>Image</th>
+                <th>Name</th>
+                <th>Price (₹)</th>
+                <th>Category</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="products-table"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="panel-orders" class="admin-panel">
+        <h1 class="section-title">All Orders</h1>
+        <div id="admin-orders-list" style="margin-top:1.5rem"></div>
+      </section>
+    </div>
+  </main>
+
+  <div class="modal-overlay hidden" id="product-modal">
+    <div class="modal">
+      <h2 id="modal-title">Add Product</h2>
+      <form id="product-form">
+        <input type="hidden" id="product-id">
+        <div class="form-group">
+          <label for="product-name">Name</label>
+          <input type="text" id="product-name" required>
+        </div>
+        <div class="form-group">
+          <label for="product-price">Price (₹ INR)</label>
+          <input type="number" id="product-price" step="1" min="1" required>
+        </div>
+        <div class="form-group">
+          <label for="product-category">Category</label>
+          <input type="text" id="product-category" required placeholder="Hoodies, T-Shirts, etc.">
+        </div>
+        <div class="form-group">
+          <label for="product-description">Description</label>
+          <textarea id="product-description" rows="3" required></textarea>
+        </div>
+        <div class="form-group">
+          <label for="product-image">Product Image</label>
+          <input type="file" id="product-image" accept="image/png,image/jpeg,image/gif,image/webp">
+        </div>
+        <div class="modal-actions">
+          <button type="submit" class="btn btn-primary">Save Product</button>
+          <button type="button" class="btn btn-outline" id="modal-cancel">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="/static/js/api.js"></script>
+  <script src="/static/js/cart.js"></script>
+  <script src="/static/js/main.js"></script>
+  <script>
+    let cachedProducts = [];
+
+    function requireAdmin() {
+      const user = getUser();
+      if (!user || user.role !== "admin") {
+        window.location.href = "/admin/login.html";
+        return false;
+      }
+      return true;
+    }
+
+    function switchPanel(name) {
+      document.querySelectorAll(".admin-panel").forEach((p) => p.classList.remove("active"));
+      document.querySelectorAll(".admin-nav a[data-panel]").forEach((a) => a.classList.remove("active"));
+      document.getElementById(`panel-${name}`)?.classList.add("active");
+      document.querySelector(`.admin-nav a[data-panel="${name}"]`)?.classList.add("active");
+      if (name === "orders") loadAdminOrders();
+      if (name === "products") loadProductsTable();
+      if (name === "overview") loadStats();
+    }
+
+    async function loadStats() {
+      try {
+        const data = await apiRequest("/api/admin/stats");
+        document.getElementById("stats-grid").innerHTML = `
+          <div class="stat-card"><p class="label">Revenue</p><p class="value">${formatPrice(data.revenue)}</p></div>
+          <div class="stat-card"><p class="label">Orders</p><p class="value">${data.orders_count}</p></div>
+          <div class="stat-card"><p class="label">Products</p><p class="value">${data.products_count}</p></div>
+          <div class="stat-card"><p class="label">Customers</p><p class="value">${data.customers_count}</p></div>
+          <div class="stat-card"><p class="label">Pending</p><p class="value">${data.pending_orders}</p></div>
+          <div class="stat-card"><p class="label">Subscribers</p><p class="value">${data.subscribers_count}</p></div>
+        `;
+
+        const recent = data.recent_orders || [];
+        document.getElementById("recent-orders").innerHTML = recent.length
+          ? recent.map((o) => `
+              <div class="order-card" style="padding:1rem">
+                <strong>#${o.id}</strong> · ${escapeHtml(o.user_name)} · ${formatPrice(o.total)}
+                <span class="order-status ${o.status}" style="margin-left:0.5rem">${o.status}</span>
+              </div>`).join("")
+          : "<p style='color:#9a9a9a'>No orders yet.</p>";
+      } catch (err) {
+        if (err.status === 401 || err.status === 403) window.location.href = "/admin/login.html";
+      }
+    }
+
+    async function loadProductsTable() {
+      const tbody = document.getElementById("products-table");
+      try {
+        const data = await apiRequest("/api/products");
+        cachedProducts = data.products || [];
+        tbody.innerHTML = cachedProducts.map((p) => `
+          <tr>
+            <td><img src="${escapeHtml(p.image)}" alt=""></td>
+            <td>${escapeHtml(p.name)}</td>
+            <td>${formatPrice(p.price)}</td>
+            <td>${escapeHtml(p.category)}</td>
+            <td>
+              <button type="button" class="btn btn-outline btn-sm edit-product" data-id="${p.id}">Edit</button>
+              <button type="button" class="btn btn-danger btn-sm delete-product" data-id="${p.id}">Delete</button>
+            </td>
+          </tr>`).join("");
+
+        document.querySelectorAll(".edit-product").forEach((btn) => {
+          btn.addEventListener("click", () => openProductModal(parseInt(btn.dataset.id, 10)));
+        });
+        document.querySelectorAll(".delete-product").forEach((btn) => {
+          btn.addEventListener("click", () => deleteProduct(parseInt(btn.dataset.id, 10)));
+        });
+      } catch (err) {
+        if (err.status === 401 || err.status === 403) window.location.href = "/admin/login.html";
+      }
+    }
+
+    function openProductModal(id = null) {
+      const modal = document.getElementById("product-modal");
+      document.getElementById("product-form").reset();
+      document.getElementById("product-id").value = id || "";
+
+      if (id) {
+        const product = cachedProducts.find((p) => p.id === id);
+        document.getElementById("modal-title").textContent = "Edit Product";
+        document.getElementById("product-name").value = product.name;
+        document.getElementById("product-price").value = Math.round(product.price);
+        document.getElementById("product-category").value = product.category;
+        document.getElementById("product-description").value = product.description;
+      } else {
+        document.getElementById("modal-title").textContent = "Add Product";
+      }
+      modal.classList.remove("hidden");
+    }
+
+    async function deleteProduct(id) {
+      if (!confirm("Delete this product permanently?")) return;
+      try {
+        await apiRequest(`/api/admin/products/${id}`, { method: "DELETE" });
+        showAlert("alert-box", "Product deleted", "success");
+        loadProductsTable();
+        loadStats();
+      } catch (err) {
+        showAlert("alert-box", err.message);
+      }
+    }
+
+    async function saveProduct(e) {
+      e.preventDefault();
+      const id = document.getElementById("product-id").value;
+      const formData = new FormData();
+      formData.append("name", document.getElementById("product-name").value);
+      formData.append("price", document.getElementById("product-price").value);
+      formData.append("category", document.getElementById("product-category").value);
+      formData.append("description", document.getElementById("product-description").value);
+      const file = document.getElementById("product-image").files[0];
+      if (file) formData.append("image", file);
+
+      try {
+        const url = id ? `/api/admin/products/${id}` : "/api/admin/products";
+        await apiRequest(url, { method: id ? "PUT" : "POST", body: formData });
+        document.getElementById("product-modal").classList.add("hidden");
+        showAlert("alert-box", id ? "Product updated" : "Product added", "success");
+        loadProductsTable();
+        loadStats();
+      } catch (err) {
+        showAlert("alert-box", err.message);
+      }
+    }
+
+    async function loadAdminOrders() {
+      const container = document.getElementById("admin-orders-list");
+      try {
+        const data = await apiRequest("/api/orders?all=1");
+        const orders = data.orders || [];
+        if (!orders.length) {
+          container.innerHTML = "<p style='color:#9a9a9a'>No orders yet.</p>";
+          return;
+        }
+        container.innerHTML = orders.map((order) => `
+          <div class="order-card">
+            <div class="order-header">
+              <div>
+                <strong>Order #${order.id}</strong>
+                <p style="color:#9a9a9a;font-size:0.85rem">
+                  ${escapeHtml(order.user_name)} (${escapeHtml(order.user_email)})
+                  · ${new Date(order.created_at).toLocaleString("en-IN")}
+                </p>
+                ${order.shipping_address ? `<p class="order-shipping">${escapeHtml(order.shipping_address)}, ${escapeHtml(order.city)} ${escapeHtml(order.pincode)} · ${escapeHtml(order.phone)}</p>` : ""}
+              </div>
+              <div>
+                <select class="order-status-select" data-order-id="${order.id}" style="padding:0.5rem;background:#1a1a1a;border:1px solid #252525;color:#fff;border-radius:8px">
+                  ${["pending","processing","shipped","delivered","cancelled"].map((s) =>
+                    `<option value="${s}" ${order.status===s?"selected":""}>${s}</option>`).join("")}
+                </select>
+                <p style="font-weight:700;margin-top:0.5rem">${formatPrice(order.total)}</p>
+              </div>
+            </div>
+            <ul class="order-items-list">
+              ${(order.items||[]).map((i)=>`<li><span>${escapeHtml(i.product_name)} × ${i.quantity}</span><span>${formatPrice(i.price*i.quantity)}</span></li>`).join("")}
+            </ul>
+          </div>`).join("");
+
+        document.querySelectorAll(".order-status-select").forEach((select) => {
+          select.addEventListener("change", async () => {
+            try {
+              await apiRequest(`/api/admin/orders/${select.dataset.orderId}/status`, {
+                method: "PUT",
+                body: { status: select.value },
+              });
+              showAlert("alert-box", "Order status updated", "success");
+              loadStats();
+            } catch (err) {
+              showAlert("alert-box", err.message);
+            }
+          });
+        });
+      } catch (err) {
+        showAlert("alert-box", err.message);
+      }
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+      if (!requireAdmin()) return;
+      renderHeader("admin");
+
+      document.querySelectorAll(".admin-nav a[data-panel]").forEach((link) => {
+        link.addEventListener("click", (e) => {
+          e.preventDefault();
+          switchPanel(link.dataset.panel);
+        });
+      });
+
+      document.getElementById("add-product-btn").addEventListener("click", () => openProductModal());
+      document.getElementById("modal-cancel").addEventListener("click", () => {
+        document.getElementById("product-modal").classList.add("hidden");
+      });
+      document.getElementById("product-form").addEventListener("submit", saveProduct);
+      document.getElementById("admin-logout").addEventListener("click", () => {
+        clearAuth();
+        window.location.href = "/admin/login.html";
+      });
+
+      loadStats();
+      loadProductsTable();
+    });
+  </script>
+</body>
+</html>

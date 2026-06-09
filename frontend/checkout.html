@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Checkout — Urban Edge</title>
+  <link rel="stylesheet" href="/static/css/main.css">
+</head>
+<body>
+  <header class="site-header" id="site-header"></header>
+
+  <main class="container">
+    <div class="page-header">
+      <p class="breadcrumb"><a href="/">Home</a> / <a href="/cart.html">Cart</a> / Checkout</p>
+      <h1>Checkout</h1>
+    </div>
+    <div id="alert-box"></div>
+    <div class="checkout-layout" id="checkout-layout">
+      <div class="checkout-form-card">
+        <h2>Shipping Details</h2>
+        <form id="checkout-form" novalidate>
+          <div class="form-group">
+            <label for="phone">Phone Number</label>
+            <input type="tel" id="phone" required placeholder="10-digit mobile" maxlength="15">
+          </div>
+          <div class="form-group">
+            <label for="shipping_address">Full Address</label>
+            <textarea id="shipping_address" rows="3" required placeholder="House no., street, landmark"></textarea>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="city">City</label>
+              <input type="text" id="city" required>
+            </div>
+            <div class="form-group">
+              <label for="pincode">PIN Code</label>
+              <input type="text" id="pincode" required maxlength="6" pattern="[0-9]{6}" placeholder="6 digits">
+            </div>
+          </div>
+          <button type="submit" class="btn btn-primary btn-block btn-lg" id="place-order-btn">Place Order</button>
+        </form>
+      </div>
+      <div class="checkout-summary" id="checkout-summary"></div>
+    </div>
+  </main>
+
+  <footer class="site-footer" id="site-footer"></footer>
+
+  <script src="/static/js/api.js"></script>
+  <script src="/static/js/cart.js"></script>
+  <script src="/static/js/main.js"></script>
+  <script>
+    const FREE_SHIPPING_MIN = 999;
+
+    function renderCheckoutSummary() {
+      const cart = getCart();
+      const el = document.getElementById("checkout-summary");
+      if (!cart.length) {
+        window.location.href = "/cart.html";
+        return;
+      }
+      const subtotal = getCartTotal();
+      const shipping = subtotal >= FREE_SHIPPING_MIN ? 0 : 99;
+      el.innerHTML = `
+        <h2>Your Order</h2>
+        <ul class="order-items-list" style="margin-bottom:1rem">
+          ${cart.map((i) => `<li><span>${escapeHtml(i.name)} × ${i.quantity}</span><span>${formatPrice(i.price * i.quantity)}</span></li>`).join("")}
+        </ul>
+        <div class="summary-row"><span>Subtotal</span><span>${formatPrice(subtotal)}</span></div>
+        <div class="summary-row"><span>Shipping</span><span>${shipping === 0 ? "FREE" : formatPrice(shipping)}</span></div>
+        <div class="summary-row total"><span>Total</span><span>${formatPrice(subtotal + shipping)}</span></div>
+      `;
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+      setPageTitle("checkout");
+      renderHeader("cart");
+
+      if (!getUser()) {
+        window.location.href = "/login.html?redirect=/checkout.html";
+        return;
+      }
+      if (!getCart().length) {
+        window.location.href = "/cart.html";
+        return;
+      }
+
+      renderCheckoutSummary();
+
+      document.getElementById("checkout-form").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const btn = document.getElementById("place-order-btn");
+        const phone = document.getElementById("phone").value.trim();
+        const shipping_address = document.getElementById("shipping_address").value.trim();
+        const city = document.getElementById("city").value.trim();
+        const pincode = document.getElementById("pincode").value.trim();
+
+        if (phone.length < 10) {
+          showAlert("alert-box", "Please enter a valid phone number");
+          return;
+        }
+        if (!/^\d{6}$/.test(pincode)) {
+          showAlert("alert-box", "PIN code must be exactly 6 digits");
+          return;
+        }
+
+        setLoading(btn, true, "Place Order");
+        try {
+          const items = getCart().map((i) => ({
+            product_id: i.product_id,
+            quantity: i.quantity,
+          }));
+          await apiRequest("/api/orders", {
+            method: "POST",
+            body: { items, phone, shipping_address, city, pincode },
+          });
+          clearCart();
+          showAlert("alert-box", "Order placed successfully! Redirecting...", "success");
+          setTimeout(() => { window.location.href = "/orders.html"; }, 1500);
+        } catch (err) {
+          showAlert("alert-box", err.message);
+        } finally {
+          setLoading(btn, false, "Place Order");
+        }
+      });
+    });
+  </script>
+</body>
+</html>

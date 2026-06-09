@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Login — Urban Edge</title>
+  <link rel="stylesheet" href="/static/css/main.css">
+</head>
+<body>
+  <main class="auth-page">
+    <div class="auth-card">
+      <div style="text-align:center;margin-bottom:1.5rem">
+        <span class="logo-mark" style="margin:0 auto 1rem">UE</span>
+        <h1>Admin Panel</h1>
+        <p class="subtitle">Urban Edge store management</p>
+      </div>
+      <div id="alert-box"></div>
+      <form id="admin-login-form" novalidate>
+        <div class="form-group">
+          <label for="email">Admin Email</label>
+          <input type="email" id="email" value="admin@streetwear.com" required>
+        </div>
+        <div class="form-group">
+          <label for="password">Password</label>
+          <input type="password" id="password" required>
+        </div>
+        <button type="submit" class="btn btn-primary btn-block" id="admin-login-btn">Sign In</button>
+      </form>
+      <p class="form-footer"><a href="/">← Back to store</a></p>
+    </div>
+  </main>
+
+  <script src="/static/js/api.js"></script>
+  <script src="/static/js/main.js"></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      const user = getUser();
+      if (user) {
+        if (user.role === "admin") {
+          window.location.href = "/admin/dashboard.html";
+        } else {
+          window.location.href = "/";
+        }
+        return;
+      }
+
+      document.getElementById("admin-login-form").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const btn = document.getElementById("admin-login-btn");
+        setLoading(btn, true, "Sign In");
+        try {
+          const data = await apiRequest("/api/auth/login", {
+            method: "POST",
+            body: {
+              email: document.getElementById("email").value.trim(),
+              password: document.getElementById("password").value,
+            },
+          });
+          if (data.user.role !== "admin") {
+            showAlert("alert-box", "This account is for customers. Please use the storefront login.");
+            return;
+          }
+          setAuth(data.token, data.user);
+          window.location.href = "/admin/dashboard.html";
+        } catch (err) {
+          showAlert("alert-box", err.message);
+        } finally {
+          setLoading(btn, false, "Sign In");
+        }
+      });
+    });
+  </script>
+</body>
+</html>
