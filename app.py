@@ -603,4 +603,5 @@ if __name__ == "__main__":
     print("  Admin:  http://127.0.0.1:5000/admin/login.html")
     print("  Admin:  admin@streetwear.com / admin123")
     print("=" * 50 + "\n")
-    app.run(debug=True, host="0.0.0.0", port=5000)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(debug=False, host="0.0.0.0", port=port)
